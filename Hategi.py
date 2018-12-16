@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-
+#-*- coding: utf-8 -*-
 #Hategi
 
 import rospy
@@ -37,10 +37,10 @@ class turtlebot_hategi():
     netbook_previous_battery_level = 100 # what was the previous netbook battery level (used to know if it's changed)
     kobuki_previous_battery_level = 1000 #1000 isn't possible.  Just a large fake # so the script starts believing the battery is fine
     charging_at_dock_station = False #can't leave docking station until it's full because battery was low
-    proactive_charging_at_dock_station = False #can leave docking station as soon as a coffee request comes in because battery is fine
-    count_no_one_needs_escort_in_a_row = 0 #keeps track of how many times in a row we receive "no one needs coffee".  If there is considerable down time TurtleBot will return to the docking station to proactively charge itself.
-    how_many_no_one_needs_escort_before_proactive_charging = 5 # how many times should we receive "no one needs coffee" prior to proactively returning to the docking station
-    cannot_move_until_b0_is_pressed = False # should TurtleBot stay still until B0 is pressed (e.g. while the person is brewing coffee)?
+    proactive_charging_at_dock_station = False #can leave docking station as soon as a escort request comes in because battery is fine
+    count_no_one_needs_escort_in_a_row = 0 #keeps track of how many times in a row we receive "no one needs escort".  If there is considerable down time TurtleBot will return to the docking station to proactively charge itself.
+    how_many_no_one_needs_escort_before_proactive_charging = 5 # how many times should we receive "no one needs escort" prior to proactively returning to the docking station
+    cannot_move_until_b0_is_pressed = False # should TurtleBot stay still until B0 is pressed (e.g. while the person is brewing escort)?
 
     def __init__(self):
 	#initialize ros node
@@ -61,22 +61,22 @@ class turtlebot_hategi():
 	#monitor netbook's battery power
 	rospy.Subscriber("/laptop_charge/",SmartBatteryStatus,self.NetbookPowerEventCallback)
 
-	#to avoid TurtleBot from driving to another pose while someone is making coffee ... TurtleBot isn't allowed to move until the person presses the B0 button.  To implement this we need to monitor the kobuki button events
+	#to avoid TurtleBot from driving to another pose while someone is making escort ... TurtleBot isn't allowed to move until the person presses the B0 button.  To implement this we need to monitor the kobuki button events
 	rospy.Subscriber("/mobile_base/events/button",ButtonEvent,self.ButtonEventCallback)
 
     def deliver_escort(self):
-	#if someone is currently making coffee don't move!
+	#if someone is currently making escort don't move!
 	if(self.cannot_move_until_b0_is_pressed):
 		rospy.loginfo("Waiting for button B0 to be pressed.")
 		time.sleep(2)
 		return True
 
-	#before we deliver the next coffee... how is power looking? If low go recharge first at the docking station.
+	#before we deliver the next escort... how is power looking? If low go recharge first at the docking station.
 	if(self.INeedPower()):
 		return True
 
-	#Power is fine so let's see if anyone needs coffee...
-	rospy.loginfo("Anyone need coffee?")
+	#Power is fine so let's see if anyone needs escort...
+	rospy.loginfo("Anyone need escort?")
 	#we'll send a goal to the robot to tell it to move to a pose that's near the docking station
 	goal = MoveBaseGoal()
 	goal.target_pose.header.frame_id = 'map'
@@ -85,7 +85,7 @@ class turtlebot_hategi():
 	#call the server and "pop" the next pending customer's pose (if one is pending) from the stack
     #계속 오류뜨는 부분!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! 해결함(server/config 설정바꿔줬어야함)
 	data = json.load(urllib2.urlopen(self.server_public_dns + "/Hategi-server/escort_queue.php?pop"))
-	if(data["status"] == "pending"): #someone is pending coffee!  Oh ya... let's get moving
+	if(data["status"] == "pending"): #someone is pending escort!  Oh ya... let's get moving
 		#If we're at the charging station back up 0.2 meters to avoid collision with dock
 		self.DoWeNeedToBackUpFromChargingStation()
 
@@ -117,16 +117,16 @@ class turtlebot_hategi():
 			    #tell the server that the pose was completed
 			    data = json.load(urllib2.urlopen(self.server_public_dns + "/Hategi-server/escort_queue.php?update&id=" + data["id"] + "&status=complete"))
 
-	else: #no one needs coffee :(
-		self.count_no_one_needs_escort_in_a_row = self.count_no_one_needs_escort_in_a_row + 1 #increment so we know how many times in a row no one needed coffee
-		rospy.loginfo("No one needs coffee #" + str(self.count_no_one_needs_escort_in_a_row))
+	else: #no one needs escort :(
+		self.count_no_one_needs_escort_in_a_row = self.count_no_one_needs_escort_in_a_row + 1 #increment so we know how many times in a row no one needed escort
+		rospy.loginfo("No one needs escort #" + str(self.count_no_one_needs_escort_in_a_row))
 		#considering there is nothing to do... should we charge?
 		if(self.count_no_one_needs_escort_in_a_row > self.how_many_no_one_needs_escort_before_proactive_charging and not self.charging_at_dock_station):
-			rospy.loginfo("Battery is fine but considering no one wants coffee ... Going to docking station.")
+			rospy.loginfo("Battery is fine but considering no one wants escort ... Going to docking station.")
 			self.DockWithChargingStation() #tell TurtleBot to dock with the charging station
 			self.proactive_charging_at_dock_station = True
 		else:
-			time.sleep(2) #wait 2 seconds before asking the server if there are pending coffee needs
+			time.sleep(2) #wait 2 seconds before asking the server if there are pending escort needs
 
 	return True
 
@@ -197,7 +197,7 @@ class turtlebot_hategi():
 		if(not self.battery_is_low):
 			rospy.loginfo("Kobuki battery is low")
 		self.battery_is_low = True
-	elif ( round(float(data.battery) / float(self.kobuki_base_max_charge) * 100) > 60): #the logic of not using the same value (e.g. 50) for both the battery is low & battery is fine is that it'll leave and immediatly return for more power.  The reason why we don't use == 100 is that we hope that proactive charging between coffee deliveries will charge it soon and we don't want people waiting.
+	elif ( round(float(data.battery) / float(self.kobuki_base_max_charge) * 100) > 60): #the logic of not using the same value (e.g. 50) for both the battery is low & battery is fine is that it'll leave and immediatly return for more power.  The reason why we don't use == 100 is that we hope that proactive charging between escort deliveries will charge it soon and we don't want people waiting.
 		if(self.battery_is_low):
 			rospy.loginfo("Kobuki battery is fine")
 		self.battery_is_low = False
@@ -211,7 +211,7 @@ class turtlebot_hategi():
 	#is the netbook's power low?
 	if(int(data.percentage) < 50): #50 is the percent of total power
 		self.battery_is_low_netbook = True
-	elif(int(data.percentage) > 60): #the logic of not using the same value (e.g. 50) for both the battery is low & battery is fine is that it'll leave and immediatly return for more power.  The reason why we don't use == 100 is that we hope that proactive charging between coffee deliveries will charge it soon and we don't want people waiting.
+	elif(int(data.percentage) > 60): #the logic of not using the same value (e.g. 50) for both the battery is low & battery is fine is that it'll leave and immediatly return for more power.  The reason why we don't use == 100 is that we hope that proactive charging between escort deliveries will charge it soon and we don't want people waiting.
 		self.battery_is_low_netbook = False
 
     def DockWithChargingStation(self):
@@ -238,7 +238,7 @@ class turtlebot_hategi():
 
 	if success:
 		rospy.loginfo("Auto_docking succeeded")
-		self.charging_at_dock_station = True #The callback which detects the docking status can take up to 3 seconds to update which was causing coffee bot to try and redock (presuming it failed) even when the dock was successful.  Therefore hardcoding this value after success.
+		self.charging_at_dock_station = True #The callback which detects the docking status can take up to 3 seconds to update which was causing escort bot to try and redock (presuming it failed) even when the dock was successful.  Therefore hardcoding this value after success.
 		return True
 	else:
 		rospy.loginfo("Auto_docking failed")
@@ -281,7 +281,7 @@ class turtlebot_hategi():
 
 
 if __name__ == '__main__':
-    delivery_checks = 0 #just for troubleshooting to see how many times we called the server to check for pending coffee
+    delivery_checks = 0 #just for troubleshooting to see how many times we called the server to check for pending escort
     try:
         hategi = turtlebot_hategi()
         #keep checking for deliver_escort until we shutdown the script with ctrl + c
